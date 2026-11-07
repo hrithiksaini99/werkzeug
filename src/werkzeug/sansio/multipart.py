@@ -289,7 +289,18 @@ class MultipartDecoder:
         else:
             if last_cr < complete_boundary_index:
                 last_cr = len(data)
-        return min(last_nl, last_cr)
+        safe_index = min(last_nl, last_cr)
+        # A CRLF pair is one line break. If the LF is retained as the
+        # earliest safe position, include its CR too, otherwise the CR
+        # can be emitted as stray field data when the CRLF precedes an
+        # incomplete boundary suffix.
+        if (
+            safe_index == last_nl
+            and 0 < safe_index < len(data)
+            and data[safe_index - 1 : safe_index + 1] == b"\r\n"
+        ):
+            return safe_index - 1
+        return safe_index
 
 
 class MultipartEncoder:

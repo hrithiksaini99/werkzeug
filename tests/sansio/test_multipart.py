@@ -131,6 +131,34 @@ def test_chunked_boundaries() -> None:
     assert isinstance(decoder.next_event(), Epilogue)
 
 
+
+
+def test_decoder_empty_field_split_across_bytes() -> None:
+    """Regression for #3285: feeding an empty field one byte at a time
+    must not emit a stray CR before the closing boundary."""
+    boundary = b"WZBOUND"
+    body = (
+        b"--WZBOUND\r\n"
+        b'Content-Disposition: form-data; name="a"\r\n\r\n'
+        b"\r\n--WZBOUND--\r\n"
+    )
+    decoder = MultipartDecoder(boundary)
+    data = bytearray()
+
+    for byte in body:
+        decoder.receive_data(bytes([byte]))
+        while True:
+            event = decoder.next_event()
+            if isinstance(event, NeedData):
+                break
+            if isinstance(event, Data):
+                data.extend(event.data)
+            if isinstance(event, Epilogue):
+                break
+
+    assert data == b""
+
+
 def test_empty_field() -> None:
     boundary = b"foo"
     decoder = MultipartDecoder(boundary)
